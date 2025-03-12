@@ -1,41 +1,56 @@
 .csv-table-container {
-  overflow-x: auto;
+  overflow: hidden;
   margin: 20px 0;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  height: 600px;
 }
 
-.csv-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.csv-table th {
+.table-header-row {
+  display: flex;
   background-color: #f5f5f5;
+  border-bottom: 2px solid #ddd;
+  width: 100%;
+}
+
+.table-header-cell {
   padding: 12px 15px;
   text-align: left;
   font-weight: 600;
-  border-bottom: 2px solid #ddd;
-  position: sticky;
-  top: 0;
   cursor: pointer;
   user-select: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.csv-table th:hover {
+.table-header-cell:hover {
   background-color: #eaeaea;
 }
 
-.csv-table th.sorted-asc,
-.csv-table th.sorted-desc {
+.table-header-cell.sorted-asc,
+.table-header-cell.sorted-desc {
   background-color: #e6f0fa;
 }
 
-.csv-table td {
-  padding: 0;
-  border: 1px solid #e0e0e0;
+.table-body {
+  height: calc(100% - 42px); /* Account for header height */
+}
+
+.table-row {
+  display: flex;
+  border-bottom: 1px solid #e0e0e0;
+  width: 100%;
+}
+
+.table-cell {
+  overflow: hidden;
+  border-right: 1px solid #e0e0e0;
+}
+
+.table-cell:last-child {
+  border-right: none;
 }
 
 .cell-content {
@@ -43,6 +58,9 @@
   min-height: 20px;
   position: relative;
   cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cell-content:hover {
@@ -94,8 +112,40 @@
   font-style: italic;
 }
 
+/* Progress bar styles */
+.progress-bar {
+  width: 100%;
+  height: 8px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 10px 0;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background-color: #4a90e2;
+  transition: width 0.3s ease;
+}
+
+.loading-percentage {
+  text-align: center;
+  font-size: 14px;
+  color: #666;
+}
+
+.processing-notification {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  color: #ad8b00;
+  font-size: 14px;
+}
+
 @media (max-width: 768px) {
-  .csv-table th,
+  .table-header-cell,
   .cell-content {
     padding: 6px 8px;
     font-size: 13px;

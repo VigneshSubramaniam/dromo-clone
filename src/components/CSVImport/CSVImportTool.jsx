@@ -11,9 +11,11 @@ const CSVImportTool = () => {
     csvData, 
     headers, 
     isLoading, 
+    loadingProgress,
     validationErrors, 
     uploadCSV,
-    isValidationMode
+    isValidationMode,
+    processingChunk
   } = useCSVStore();
 
   const handleFileUpload = (event) => {
@@ -43,8 +45,9 @@ const CSVImportTool = () => {
           <button 
             onClick={triggerFileInput} 
             className="upload-button"
+            disabled={isLoading}
           >
-            Upload CSV File
+            {isLoading ? 'Processing...' : 'Upload CSV File'}
           </button>
           <p className="upload-hint">
             Upload a CSV file to preview and validate its contents
@@ -52,12 +55,26 @@ const CSVImportTool = () => {
         </div>
       ) : (
         <>
-          <ToolbarActions />
+          <ToolbarActions disabled={isLoading || processingChunk} />
           
           {isLoading ? (
-            <div className="loading">Loading CSV data...</div>
+            <div className="loading">
+              <div className="loading-text">Processing CSV data...</div>
+              <div className="progress-bar">
+                <div 
+                  className="progress-bar-fill" 
+                  style={{ width: `${loadingProgress}%` }}
+                />
+              </div>
+              <div className="loading-percentage">{loadingProgress}%</div>
+            </div>
           ) : (
             <>
+              {processingChunk && (
+                <div className="processing-notification">
+                  Processing data in chunks...
+                </div>
+              )}
               <CSVTable />
               
               {isValidationMode && validationErrors.length > 0 && (

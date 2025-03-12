@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useCSVStore } from '../../store/csvStore';
+import { FixedSizeList as List } from 'react-window';
+import AutoSizer from 'react-virtualized-auto-sizer';
 import './CSVTable.css';
 
 const CSVTable = () => {
@@ -17,41 +19,54 @@ const CSVTable = () => {
   const [editingCell, setEditingCell] = useState(null);
   const [sortConfig, setSortConfig] = useState({ column: null, direction: 'asc' });
   
-  // Check if a cell has validation errors
-  const getCellError = (rowId, column) => {
-    if (!isValidationMode) return null;
+  // Check if a cell has validation errors - memo for performance
+  const errorMap = useMemo(() => {
+    if (!isValidationMode || !validationErrors.length) return {};
     
-    return validationErrors.find(
-      error => error.rowId === rowId && error.column === column
-    );
-  };
+    return validationErrors.reduce((acc, error) => {
+      const key = `${error.rowId}-${error.column}`;
+      acc[key] = error;
+      return acc;
+    }, {});
+  }, [validationErrors, isValidationMode]);
   
-  // Check if a cell is currently selected
-  const isCellSelected = (rowId, column) => {
-    return selectedCells.some(
-      cell => cell.rowId === rowId && cell.column === column
-    );
-  };
+  // Check if a cell is currently selected - memo for performance
+  const selectionMap = useMemo(() => {
+    return selectedCells.reduce((acc, cell) => {
+      const key = `${cell.rowId}-${cell.column}`;
+      acc[key] = true;
+      return acc;
+    }, {});
+  }, [selectedCells]);
+  
+  const getCellError = useCallback((rowId, column) => {
+    if (!isValidationMode) return null;
+    return errorMap[`${rowId}-${column}`];
+  }, [errorMap, isValidationMode]);
+  
+  const isCellSelected = useCallback((rowId, column) => {
+    return selectionMap[`${rowId}-${column}`] || false;
+  }, [selectionMap]);
   
   // Handle cell click for selection
-  const handleCellClick = (rowId, column, event) => {
+  const handleCellClick = useCallback((rowId, column, event) => {
     const isMultiSelect = event.ctrlKey || event.metaKey;
     selectCell(rowId, column, isMultiSelect);
-  };
+  }, [selectCell]);
   
   // Handle double click to edit
-  const handleCellDoubleClick = (rowId, column, value) => {
+  const handleCellDoubleClick = useCallback((rowId, column, value) => {
     setEditingCell({ rowId, column, value });
-  };
+  }, []);
   
   // Handle cell edit completion
-  const handleCellEditComplete = (rowId, column, newValue) => {
+  const handleCellEditComplete = useCallback((rowId, column, newValue) => {
     updateCell(rowId, column, newValue);
     setEditingCell(null);
-  };
+  }, [updateCell]);
   
   // Handle column header click for sorting
-  const handleHeaderClick = (column) => {
+  const handleHeaderClick = useCallback((column) => {
     let direction = 'asc';
     
     if (sortConfig.column === column) {
@@ -60,10 +75,10 @@ const CSVTable = () => {
     
     setSortConfig({ column, direction });
     sortByColumn(column, direction);
-  };
+  }, [sortConfig, sortByColumn]);
   
   // Render cell content
-  const renderCell = (row, column) => {
+  const renderCell = useCallback((row, column) => {
     const rowId = row._id;
     const value = row[column];
     const error = getCellError(rowId, column);
@@ -102,48 +117,76 @@ const CSVTable = () => {
         {error && <span className="error-indicator">!</span>}
       </div>
     );
-  };
+  }, [editingCell, getCellError, isCellSelected, handleCellClick, handleCellDoubleClick, handleCellEditComplete]);
+  
+  // Row renderer for virtualized list
+  const Row = useCallback(({ index, style }) => {
+    const row = csvData[index];
+    
+    return (
+      <div className="table-row" style={style}>
+        {headers.map((header, colIndex) => (
+          <div 
+            key={`${row._id}-${header}`}
+            className="table-cell"
+            style={{ width: `${100 / headers.length}%` }}
+          >
+            {renderCell(row, header)}
+          </div>
+        ))}
+      </div>
+    );
+  }, [csvData, headers, renderCell]);
+  
+  // Header row
+  const HeaderRow = useCallback(() => (
+    <div className="table-header-row">
+      {headers.map((header, index) => (
+        <div 
+          key={header}
+          className={`table-header-cell ${sortConfig.column === header ? `sorted-${sortConfig.direction}` : ''}`}
+          style={{ width: `${100 / headers.length}%` }}
+          onClick={() => handleHeaderClick(header)}
+        >
+          {header}
+          {sortConfig.column === header && (
+            <span className="sort-indicator">
+              {sortConfig.direction === 'asc' ? ' ↑' : ' ↓'}
+            </span>
+          )}
+        </div>
+      ))}
+    </div>
+  ), [headers, sortConfig, handleHeaderClick]);
   
   // If no data, show a message
   if (!csvData.length) {
     return <div className="no-data">No CSV data loaded</div>;
   }
   
+  // Calculate item size (row height) based on content
+  const itemSize = 40; // Default row height
+  
   return (
     <div className="csv-table-container">
-      <table className="csv-table">
-        <thead>
-          <tr>
-            {headers.map(header => (
-              <th 
-                key={header}
-                onClick={() => handleHeaderClick(header)}
-                className={sortConfig.column === header ? `sorted-${sortConfig.direction}` : ''}
-              >
-                {header}
-                {sortConfig.column === header && (
-                  <span className="sort-indicator">
-                    {sortConfig.direction === 'asc' ? ' ↑' : ' ↓'}
-                  </span>
-                )}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {csvData.map(row => (
-            <tr key={row._id}>
-              {headers.map(header => (
-                <td key={`${row._id}-${header}`}>
-                  {renderCell(row, header)}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <HeaderRow />
+      <div className="table-body">
+        <AutoSizer>
+          {({ height, width }) => (
+            <List
+              height={Math.min(height || 600, itemSize * Math.min(csvData.length, 15))}
+              width={width}
+              itemCount={csvData.length}
+              itemSize={itemSize}
+              overscanCount={5}
+            >
+              {Row}
+            </List>
+          )}
+        </AutoSizer>
+      </div>
     </div>
   );
 };
 
-export default CSVTable; 
+export default React.memo(CSVTable); 
