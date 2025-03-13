@@ -70,11 +70,11 @@ const CSVImportTool = () => {
             </div>
           ) : (
             <>
-              {processingChunk && (
+              {/* {processingChunk && (
                 <div className="processing-notification">
                   Processing data in chunks...
                 </div>
-              )}
+              )} */}
               <CSVTable />
               
               {isValidationMode && validationErrors.length > 0 && (

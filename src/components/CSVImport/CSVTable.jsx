@@ -48,16 +48,19 @@ const CSVTable = () => {
     return selectionMap[`${rowId}-${column}`] || false;
   }, [selectionMap]);
   
-  // Handle cell click for selection
-  const handleCellClick = useCallback((rowId, column, event) => {
-    const isMultiSelect = event.ctrlKey || event.metaKey;
-    selectCell(rowId, column, isMultiSelect);
-  }, [selectCell]);
-  
-  // Handle double click to edit
-  const handleCellDoubleClick = useCallback((rowId, column, value) => {
+  // Handle cell click - now initiates editing instead of selection
+  const handleCellClick = useCallback((rowId, column, value, event) => {
+    // If we're already editing a cell, finish that edit first
+    if (editingCell) {
+      updateCell(editingCell.rowId, editingCell.column, editingCell.value);
+    }
+    
+    // Start editing the clicked cell
     setEditingCell({ rowId, column, value });
-  }, []);
+    
+    // Prevent the event from bubbling to avoid issues
+    event.stopPropagation();
+  }, [editingCell, updateCell]);
   
   // Handle cell edit completion
   const handleCellEditComplete = useCallback((rowId, column, newValue) => {
@@ -67,6 +70,11 @@ const CSVTable = () => {
   
   // Handle column header click for sorting
   const handleHeaderClick = useCallback((column) => {
+    // First, complete any in-progress edits
+    if (editingCell) {
+      handleCellEditComplete(editingCell.rowId, editingCell.column, editingCell.value);
+    }
+    
     let direction = 'asc';
     
     if (sortConfig.column === column) {
@@ -75,7 +83,39 @@ const CSVTable = () => {
     
     setSortConfig({ column, direction });
     sortByColumn(column, direction);
-  }, [sortConfig, sortByColumn]);
+  }, [sortConfig, sortByColumn, editingCell, handleCellEditComplete]);
+  
+  // Handle outside clicks to finish editing
+  React.useEffect(() => {
+    if (!editingCell) return;
+    
+    const handleClickOutside = (event) => {
+      // If clicked outside the editing cell, complete the edit
+      if (!event.target.closest('.cell-editor')) {
+        handleCellEditComplete(editingCell.rowId, editingCell.column, editingCell.value);
+      }
+    };
+    
+    // Add event listener
+    document.addEventListener('mousedown', handleClickOutside);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [editingCell, handleCellEditComplete]);
+  
+  // Handle key presses during editing
+  const handleKeyDown = useCallback((e) => {
+    if (!editingCell) return;
+    
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault(); // Prevent default tab behavior
+      handleCellEditComplete(editingCell.rowId, editingCell.column, editingCell.value);
+    } else if (e.key === 'Escape') {
+      setEditingCell(null);
+    }
+  }, [editingCell, handleCellEditComplete]);
   
   // Render cell content
   const renderCell = useCallback((row, column) => {
@@ -83,24 +123,19 @@ const CSVTable = () => {
     const value = row[column];
     const error = getCellError(rowId, column);
     const isSelected = isCellSelected(rowId, column);
+    const isEditing = editingCell && editingCell.rowId === rowId && editingCell.column === column;
     
     // If this cell is being edited
-    if (editingCell && editingCell.rowId === rowId && editingCell.column === column) {
+    if (isEditing) {
       return (
         <input
           type="text"
-          value={editingCell.value || ''}
+          value={editingCell.value !== undefined ? editingCell.value : ''}
           onChange={(e) => setEditingCell({...editingCell, value: e.target.value})}
-          onBlur={() => handleCellEditComplete(rowId, column, editingCell.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              handleCellEditComplete(rowId, column, editingCell.value);
-            } else if (e.key === 'Escape') {
-              setEditingCell(null);
-            }
-          }}
+          onKeyDown={handleKeyDown}
           autoFocus
           className="cell-editor"
+          onClick={(e) => e.stopPropagation()}
         />
       );
     }
@@ -109,15 +144,14 @@ const CSVTable = () => {
     return (
       <div 
         className={`cell-content ${error ? 'has-error' : ''} ${isSelected ? 'selected' : ''}`}
-        onClick={(e) => handleCellClick(rowId, column, e)}
-        onDoubleClick={() => handleCellDoubleClick(rowId, column, value)}
-        title={error ? error.error : ''}
+        onClick={(e) => handleCellClick(rowId, column, value, e)}
+        title={error ? error.error : 'Click to edit'}
       >
         {value || ''}
         {error && <span className="error-indicator">!</span>}
       </div>
     );
-  }, [editingCell, getCellError, isCellSelected, handleCellClick, handleCellDoubleClick, handleCellEditComplete]);
+  }, [editingCell, getCellError, isCellSelected, handleCellClick, handleKeyDown]);
   
   // Row renderer for virtualized list
   const Row = useCallback(({ index, style }) => {
@@ -169,6 +203,7 @@ const CSVTable = () => {
   
   return (
     <div className="csv-table-container">
+      {/* <div className="table-info-message">Click on any cell to edit its value</div> */}
       <HeaderRow />
       <div className="table-body">
         <AutoSizer>
