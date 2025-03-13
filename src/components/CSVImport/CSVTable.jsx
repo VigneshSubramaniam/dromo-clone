@@ -13,11 +13,16 @@ const CSVTable = () => {
     selectCell,
     selectedCells,
     isValidationMode,
-    sortByColumn
+    sortByColumn,
+    selectColumn
   } = useCSVStore();
   
   const [editingCell, setEditingCell] = useState(null);
   const [sortConfig, setSortConfig] = useState({ column: null, direction: 'asc' });
+  
+  // Define cell width constant
+  const CELL_WIDTH = 150; // Fixed width for each cell (in pixels)
+  const tableWidth = headers.length * CELL_WIDTH;
   
   // Check if a cell has validation errors - memo for performance
   const errorMap = useMemo(() => {
@@ -53,14 +58,23 @@ const CSVTable = () => {
     // If we're already editing a cell, finish that edit first
     if (editingCell) {
       updateCell(editingCell.rowId, editingCell.column, editingCell.value);
+      setEditingCell(null);
+    }
+
+    // Check if this is a selection operation (with shift key)
+    if (event.shiftKey) {
+      const isMultiSelect = event.ctrlKey || event.metaKey;
+      event.preventDefault(); // Prevent default behavior
+      selectCell(rowId, column, isMultiSelect);
+      return;
     }
     
-    // Start editing the clicked cell
+    // Otherwise, it's an edit operation
     setEditingCell({ rowId, column, value });
     
     // Prevent the event from bubbling to avoid issues
     event.stopPropagation();
-  }, [editingCell, updateCell]);
+  }, [editingCell, updateCell, selectCell]);
   
   // Handle cell edit completion
   const handleCellEditComplete = useCallback((rowId, column, newValue) => {
@@ -117,6 +131,13 @@ const CSVTable = () => {
     }
   }, [editingCell, handleCellEditComplete]);
   
+  // Add a column header context menu function
+  const handleHeaderContextMenu = useCallback((event, column) => {
+    event.preventDefault();
+    // Select the entire column
+    selectColumn(column);
+  }, [selectColumn]);
+  
   // Render cell content
   const renderCell = useCallback((row, column) => {
     const rowId = row._id;
@@ -163,7 +184,7 @@ const CSVTable = () => {
           <div 
             key={`${row._id}-${header}`}
             className="table-cell"
-            style={{ width: `${100 / headers.length}%` }}
+            style={{ width: CELL_WIDTH, minWidth: CELL_WIDTH }}
           >
             {renderCell(row, header)}
           </div>
@@ -179,8 +200,10 @@ const CSVTable = () => {
         <div 
           key={header}
           className={`table-header-cell ${sortConfig.column === header ? `sorted-${sortConfig.direction}` : ''}`}
-          style={{ width: `${100 / headers.length}%` }}
+          style={{ width: CELL_WIDTH, minWidth: CELL_WIDTH }}
           onClick={() => handleHeaderClick(header)}
+          onContextMenu={(e) => handleHeaderContextMenu(e, header)}
+          title="Click to sort, right-click to select column"
         >
           {header}
           {sortConfig.column === header && (
@@ -191,7 +214,7 @@ const CSVTable = () => {
         </div>
       ))}
     </div>
-  ), [headers, sortConfig, handleHeaderClick]);
+  ), [headers, sortConfig, handleHeaderClick, handleHeaderContextMenu]);
   
   // If no data, show a message
   if (!csvData.length) {
@@ -203,22 +226,23 @@ const CSVTable = () => {
   
   return (
     <div className="csv-table-container">
-      {/* <div className="table-info-message">Click on any cell to edit its value</div> */}
-      <HeaderRow />
-      <div className="table-body">
-        <AutoSizer>
-          {({ height, width }) => (
-            <List
-              height={Math.min(height || 600, itemSize * Math.min(csvData.length, 15))}
-              width={width}
-              itemCount={csvData.length}
-              itemSize={itemSize}
-              overscanCount={5}
-            >
-              {Row}
-            </List>
-          )}
-        </AutoSizer>
+      <div className="table-scrollable">
+        <HeaderRow />
+        <div className="table-body">
+          <AutoSizer>
+            {({ height, width }) => (
+              <List
+                height={Math.min(height || 600, itemSize * Math.min(csvData.length, 15))}
+                width={width}
+                itemCount={csvData.length}
+                itemSize={itemSize}
+                overscanCount={5}
+              >
+                {Row}
+              </List>
+            )}
+          </AutoSizer>
+        </div>
       </div>
     </div>
   );

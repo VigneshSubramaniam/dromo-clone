@@ -3,6 +3,7 @@ import { useCSVStore } from '../../store/csvStore';
 import CSVTable from './CSVTable';
 import ValidationSummary from './ValidationSummary';
 import ToolbarActions from './ToolbarActions';
+import BulkEditToolbar from './BulkEditToolbar';
 import './CSVImportTool.css';
 
 const CSVImportTool = () => {
@@ -70,11 +71,7 @@ const CSVImportTool = () => {
             </div>
           ) : (
             <>
-              {/* {processingChunk && (
-                <div className="processing-notification">
-                  Processing data in chunks...
-                </div>
-              )} */}
+              <BulkEditToolbar />
               <CSVTable />
               
               {isValidationMode && validationErrors.length > 0 && (

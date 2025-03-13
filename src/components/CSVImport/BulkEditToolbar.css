@@ -1,0 +1,100 @@
+.bulk-edit-toolbar {
+  margin: 10px 0;
+  padding: 15px;
+  background-color: #f0f7ff;
+  border-radius: 4px;
+  border: 1px solid #d0e3ff;
+}
+
+.bulk-selection-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.selection-count {
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.clear-selection-btn {
+  background: none;
+  border: none;
+  color: #ff4d4f;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  text-decoration: underline;
+}
+
+.bulk-edit-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.bulk-edit-group {
+  display: flex;
+  gap: 5px;
+}
+
+.bulk-value-input,
+.column-select {
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  font-size: 14px;
+  min-width: 200px;
+}
+
+.bulk-update-btn,
+.select-column-btn,
+.copy-first-btn {
+  padding: 8px 12px;
+  background-color: #1890ff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.bulk-update-btn:hover,
+.select-column-btn:hover,
+.copy-first-btn:hover {
+  background-color: #096dd9;
+}
+
+.bulk-update-btn:disabled,
+.select-column-btn:disabled,
+.copy-first-btn:disabled {
+  background-color: #d9d9d9;
+  cursor: not-allowed;
+}
+
+.selection-help {
+  color: #888;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.processing-indicator {
+  background-color: #fffbe6;
+  border: 1px solid #ffe58f;
+  padding: 8px 12px;
+  border-radius: 4px;
+  color: #ad8b00;
+  font-size: 14px;
+  width: 100%;
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+@media (max-width: 768px) {
+  .bulk-edit-controls {
+    flex-direction: column;
+  }
+} 

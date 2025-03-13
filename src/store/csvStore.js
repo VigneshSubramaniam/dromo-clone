@@ -271,34 +271,69 @@ export const useCSVStore = create((set, get) => {
     },
     
     // Bulk update selected cells with chunked processing
-    bulkUpdateSelected: async (value) => {
-      const { selectedCells } = get();
+    bulkUpdateSelected: (newValue) => {
+      // First, get the current state once to avoid stale state issues
+      const { selectedCells, csvData } = get();
       
-      // Process in chunks to avoid UI blocking
-      set({ processingChunk: true });
+      if (selectedCells.length === 0) return;
       
-      await processInChunks(selectedCells, CHUNK_SIZE, (chunk) => {
-        set(state => {
-          const newData = [...state.csvData];
-          
-          chunk.forEach(({ rowId, column }) => {
-            const rowIndex = newData.findIndex(row => row._id === rowId);
-            if (rowIndex !== -1) {
-              newData[rowIndex] = {
-                ...newData[rowIndex],
-                [column]: value
-              };
-            }
-          });
-          
-          return { csvData: newData };
+      // Create a new copy of the data array
+      const updatedData = [...csvData];
+      
+      // Process all selections at once for smaller datasets
+      if (selectedCells.length <= 1000) {
+        selectedCells.forEach(cell => {
+          const rowIndex = updatedData.findIndex(row => row._id === cell.rowId);
+          if (rowIndex !== -1) {
+            updatedData[rowIndex] = {
+              ...updatedData[rowIndex],
+              [cell.column]: newValue
+            };
+          }
         });
-      });
+        
+        // Update state in one operation
+        set({ csvData: updatedData });
+        get().validateData();
+        return;
+      }
       
-      set({ processingChunk: false });
+      // For larger datasets, process in chunks
+      let processedCount = 0;
+      const totalCells = selectedCells.length;
+      const batchSize = 1000;
       
-      // Validate after all updates
-      get().validateData();
+      const processNextBatch = () => {
+        // Get the next batch
+        const endIndex = Math.min(processedCount + batchSize, totalCells);
+        const currentBatch = selectedCells.slice(processedCount, endIndex);
+        
+        // Process this batch
+        currentBatch.forEach(cell => {
+          const rowIndex = updatedData.findIndex(row => row._id === cell.rowId);
+          if (rowIndex !== -1) {
+            updatedData[rowIndex] = {
+              ...updatedData[rowIndex],
+              [cell.column]: newValue
+            };
+          }
+        });
+        
+        // Update processed count
+        processedCount = endIndex;
+        
+        // If we've processed everything, update the state and validate
+        if (processedCount >= totalCells) {
+          set({ csvData: updatedData });
+          get().validateData();
+        } else {
+          // Otherwise, process the next batch after a brief delay
+          setTimeout(processNextBatch, 0);
+        }
+      };
+      
+      // Start processing
+      processNextBatch();
     },
     
     // Filter rows based on a condition - optimized for large datasets
@@ -391,6 +426,105 @@ export const useCSVStore = create((set, get) => {
     // Check if import is ready (no validation errors)
     isReadyToImport: () => {
       return get().validationErrors.length === 0;
+    },
+    
+    // Select all cells in a column
+    selectColumn: (columnName) => {
+      set(state => {
+        // Start with an empty selection array
+        const columnCells = [];
+        
+        // Process in batches to prevent freezing
+        const batchSize = 100;
+        const totalRows = state.csvData.length;
+        
+        // Use a more efficient loop instead of map
+        for (let i = 0; i < totalRows; i++) {
+          columnCells.push({
+            rowId: state.csvData[i]._id,
+            column: columnName
+          });
+          
+          // After each batch, allow UI thread to breathe
+          if (i % batchSize === 0 && i > 0) {
+            setTimeout(() => {}, 0);
+          }
+        }
+        
+        return { selectedCells: columnCells };
+      });
+    },
+    
+    // Copy value from a source cell to all selected cells
+    copyToSelected: (sourceRowId, sourceColumn) => {
+      // Get current state
+      const { selectedCells, csvData } = get();
+      
+      // Find the source value
+      const sourceRow = csvData.find(row => row._id === sourceRowId);
+      if (!sourceRow) return;
+      
+      const sourceValue = sourceRow[sourceColumn];
+      const updatedData = [...csvData];
+      
+      // Process all cells at once for smaller selections
+      if (selectedCells.length <= 1000) {
+        selectedCells.forEach(cell => {
+          // Skip the source cell itself
+          if (cell.rowId === sourceRowId && cell.column === sourceColumn) return;
+          
+          const rowIndex = updatedData.findIndex(row => row._id === cell.rowId);
+          if (rowIndex !== -1) {
+            updatedData[rowIndex] = {
+              ...updatedData[rowIndex],
+              [cell.column]: sourceValue
+            };
+          }
+        });
+        
+        set({ csvData: updatedData });
+        get().validateData();
+        return;
+      }
+      
+      // For larger datasets, process in chunks
+      let processedCount = 0;
+      const totalCells = selectedCells.length;
+      const batchSize = 1000;
+      
+      const processNextBatch = () => {
+        const endIndex = Math.min(processedCount + batchSize, totalCells);
+        const currentBatch = selectedCells.slice(processedCount, endIndex);
+        
+        currentBatch.forEach(cell => {
+          // Skip the source cell itself
+          if (cell.rowId === sourceRowId && cell.column === sourceColumn) return;
+          
+          const rowIndex = updatedData.findIndex(row => row._id === cell.rowId);
+          if (rowIndex !== -1) {
+            updatedData[rowIndex] = {
+              ...updatedData[rowIndex],
+              [cell.column]: sourceValue
+            };
+          }
+        });
+        
+        processedCount = endIndex;
+        
+        if (processedCount >= totalCells) {
+          set({ csvData: updatedData });
+          get().validateData();
+        } else {
+          setTimeout(processNextBatch, 0);
+        }
+      };
+      
+      processNextBatch();
+    },
+    
+    // Clear all selections
+    clearSelection: () => {
+      set({ selectedCells: [] });
     }
   };
 }); 
